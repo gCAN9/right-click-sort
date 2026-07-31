@@ -5,7 +5,13 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { nftsResponse, imgResponse } = require('./lib/opensea');
+const {
+  nftsResponse,
+  imgResponse,
+  profileResponse,
+  collectionsResponse,
+  collectionItemsResponse,
+} = require('./lib/opensea');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -45,6 +51,21 @@ http
     const u = new URL(req.url, `http://${req.headers.host}`);
     if (u.pathname === '/api/nfts') {
       const r = await nftsResponse(u.searchParams.get('url'));
+      return json(res, r.status, r.body);
+    }
+    if (u.pathname === '/api/profile') {
+      const r = await profileResponse(u.searchParams.get('q'));
+      return json(res, r.status, r.body);
+    }
+    if (u.pathname === '/api/collections') {
+      const r = await collectionsResponse(u.searchParams.get('address'));
+      return json(res, r.status, r.body);
+    }
+    if (u.pathname === '/api/collection-items') {
+      const r = await collectionItemsResponse(
+        u.searchParams.get('address'),
+        u.searchParams.get('contract')
+      );
       return json(res, r.status, r.body);
     }
     if (u.pathname === '/api/img') {

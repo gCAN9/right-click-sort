@@ -76,6 +76,113 @@ function setStatus(msg, isError = false) {
   entryStatus.classList.toggle('error', isError);
 }
 
+// ---------- Profile picker (search → collections → items) ----------
+
+const profileInput = document.getElementById('profile-input');
+const profileResults = document.getElementById('profile-results');
+const collectionsList = document.getElementById('collections-list');
+let searchTimer = null;
+let activeProfile = null;
+
+const escapeHtml = (s) =>
+  s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+profileInput.addEventListener('input', () => {
+  activeProfile = null;
+  collectionsList.hidden = true;
+  clearTimeout(searchTimer);
+  const q = profileInput.value.trim();
+  if (q.length < 3) {
+    profileResults.hidden = true;
+    return;
+  }
+  searchTimer = setTimeout(() => searchProfiles(q), 400);
+});
+
+document.addEventListener('pointerdown', (e) => {
+  if (!profileResults.hidden && !e.target.closest('.picker-field')) {
+    profileResults.hidden = true;
+  }
+});
+
+async function searchProfiles(q) {
+  profileResults.innerHTML = '<div class="dropdown-note">Searching…</div>';
+  profileResults.hidden = false;
+  try {
+    const r = await fetch(`/api/profile?q=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+    if (q !== profileInput.value.trim()) return; // stale response
+    if (!d.results.length) {
+      profileResults.innerHTML =
+        '<div class="dropdown-note">No profiles found — try an exact OpenSea username, ENS name or 0x address</div>';
+      return;
+    }
+    profileResults.innerHTML = '';
+    d.results.forEach((p) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dropdown-row';
+      b.innerHTML = `<span>${escapeHtml(p.name)}</span><span class="addr">${p.address.slice(0, 6)}…${p.address.slice(-4)}</span>`;
+      b.addEventListener('click', () => pickProfile(p));
+      profileResults.appendChild(b);
+    });
+  } catch (e) {
+    profileResults.innerHTML = `<div class="dropdown-note">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function pickProfile(p) {
+  activeProfile = p;
+  profileInput.value = p.name;
+  profileResults.hidden = true;
+  collectionsList.hidden = false;
+  collectionsList.innerHTML = '<div class="dropdown-note">Loading collections…</div>';
+  try {
+    const r = await fetch(`/api/collections?address=${p.address}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+    if (!d.collections.length) {
+      collectionsList.innerHTML =
+        '<div class="dropdown-note">No NFT collections found for this wallet (Ethereum mainnet)</div>';
+      return;
+    }
+    collectionsList.innerHTML = '';
+    d.collections.forEach((c) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'collection-row';
+      const thumb = c.thumb
+        ? `<img src="${escapeHtml(proxied(c.thumb))}" alt="" loading="lazy" />`
+        : '<span class="thumb-placeholder"></span>';
+      b.innerHTML = `${thumb}<span class="col-name">${escapeHtml(c.name)}</span><span class="col-count">${c.count} item${c.count === 1 ? '' : 's'}</span>`;
+      b.addEventListener('click', () => pickCollection(c));
+      collectionsList.appendChild(b);
+    });
+  } catch (e) {
+    collectionsList.innerHTML = `<div class="dropdown-note">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function pickCollection(c) {
+  setStatus(`Fetching ${c.name}…`);
+  try {
+    const r = await fetch(
+      `/api/collection-items?address=${activeProfile.address}&contract=${c.contract}`
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+    setStatus(`Found ${d.images.length} images — loading…`);
+    const loaded = await loadImages(d.images);
+    if (!loaded.length) throw new Error('None of the images could be loaded.');
+    items = loaded;
+    setStatus('');
+    enterWorkspace();
+  } catch (e) {
+    setStatus(e.message, true);
+  }
+}
+
 async function loadImages(list) {
   const results = await Promise.allSettled(
     list.map(

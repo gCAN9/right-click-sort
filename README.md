@@ -13,7 +13,12 @@ Then open http://localhost:3000. No dependencies (Node 18+).
 
 ## Use
 
-1. Paste an OpenSea URL and press Enter. Supported:
+1. Pick images either way:
+   - **Profile picker**: search a profile (exact OpenSea username, ENS name,
+     or 0x address), pick it from the dropdown, then choose one of the
+     wallet's collections — its held items load into the grid. Resolution is
+     on-chain via Blockscout (Ethereum mainnet).
+   - **URL**: paste an OpenSea URL and press Enter. Supported:
    - Collection: `opensea.io/collection/{slug}`
    - Single item: `opensea.io/assets/{chain}/{contract}/{tokenId}`
    - Profile / filtered profile view:
