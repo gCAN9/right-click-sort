@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"http://localhost:3000/api/nfts?url=https%3A%2F%2Fopensea.io%2Fcollection%2Fboredapeyachtclub\")",
+      "Bash(curl -sL \"https://opensea.io/collection/compas-by-harto\" -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/126.0.0.0 Safari/537.36\" -o compas.html)",
+      "Bash(curl -s \"https://eth.blockscout.com/api/v2/addresses/0x552f01d67b352aaa38bc675e30ced97f2451df63/nft?type=ERC-721%2CERC-1155\")",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Right-Click-Sort</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- View 1: URL entry -->
+  <section id="entry-view" class="view">
+    <form id="url-form" autocomplete="off">
+      <input
+        id="url-input"
+        type="url"
+        placeholder="Paste an OpenSea URL…"
+        spellcheck="false"
+        required
+      />
+      <button type="submit" class="visually-hidden" tabindex="-1">Load</button>
+      <div id="entry-status" class="entry-status" hidden></div>
+    </form>
+  </section>
+
+  <!-- View 2: workspace -->
+  <section id="workspace-view" class="view" hidden>
+    <header id="toolbar">
+      <button id="back-btn" class="ghost" title="Start over">&larr;</button>
+      <div class="control">
+        <label for="canvas-w">Canvas</label>
+        <input id="canvas-w" type="number" min="200" max="8000" step="10" value="1200" />
+        <span class="times">&times;</span>
+        <input id="canvas-h" type="number" min="200" max="8000" step="10" value="800" />
+        <span class="unit">px</span>
+      </div>
+      <div class="control grow">
+        <label for="padding-range">Padding</label>
+        <input id="padding-range" type="range" min="0" max="80" step="1" value="12" />
+        <span id="padding-value" class="unit">12px</span>
+      </div>
+      <div class="control">
+        <label>Auto</label>
+        <button id="auto-grid" class="chip" title="Uniform grid that fills the canvas">Grid</button>
+        <button id="auto-rows" class="chip" title="Justified rows spanning the full width">Rows</button>
+        <button id="auto-mosaic" class="chip" title="Mixed sizes packed to fill the canvas">Mosaic</button>
+      </div>
+      <button id="export-btn" class="primary">Save as picture</button>
+    </header>
+    <main id="canvas-scroller">
+      <div id="canvas" class="canvas"></div>
+    </main>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

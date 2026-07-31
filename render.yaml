@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: right-click-sort
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: OPENSEA_API_KEY
+        sync: false

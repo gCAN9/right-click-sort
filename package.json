@@ -1,0 +1,12 @@
+{
+  "name": "right-click-sort",
+  "version": "1.0.0",
+  "description": "Paste an OpenSea URL, arrange the NFT images in a grid, save as a picture.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
