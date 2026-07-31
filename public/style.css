@@ -502,6 +502,20 @@ button.ghost:hover {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
 }
 
+.item.swap-target {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+  z-index: 3;
+}
+
+.item.swap-target::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(108, 123, 255, 0.25);
+  pointer-events: none;
+}
+
 .drop-indicator {
   position: absolute;
   width: 3px;

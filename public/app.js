@@ -540,7 +540,11 @@ function startReorder(e, index, div) {
   let dragging = false;
   let ghost = null;
   let indicator = null;
-  let dropIndex = index;
+  let drop = { mode: 'insert', index };
+
+  const clearSwapHighlight = () => {
+    canvasEl.querySelectorAll('.swap-target').forEach((el) => el.classList.remove('swap-target'));
+  };
 
   const onMove = (ev) => {
     if (!dragging) {
@@ -560,8 +564,15 @@ function startReorder(e, index, div) {
     ghost.style.left = `${ev.clientX + 8}px`;
     ghost.style.top = `${ev.clientY + 8}px`;
 
-    dropIndex = findDropIndex(ev.clientX, ev.clientY, index);
-    positionIndicator(indicator, dropIndex);
+    drop = findDropTarget(ev.clientX, ev.clientY, index);
+    clearSwapHighlight();
+    if (drop.mode === 'swap') {
+      indicator.hidden = true;
+      itemEls[drop.index].classList.add('swap-target');
+    } else {
+      indicator.hidden = false;
+      positionIndicator(indicator, drop.index);
+    }
   };
 
   const onUp = () => {
@@ -569,11 +580,14 @@ function startReorder(e, index, div) {
     window.removeEventListener('pointerup', onUp);
     if (!dragging) return;
     div.classList.remove('dragging');
+    clearSwapHighlight();
     ghost.remove();
     indicator.remove();
-    if (dropIndex !== index && dropIndex !== index + 1) {
+    if (drop.mode === 'swap') {
+      [items[index], items[drop.index]] = [items[drop.index], items[index]];
+    } else if (drop.index !== index && drop.index !== index + 1) {
       const [moved] = items.splice(index, 1);
-      items.splice(dropIndex > index ? dropIndex - 1 : dropIndex, 0, moved);
+      items.splice(drop.index > index ? drop.index - 1 : drop.index, 0, moved);
     }
     render();
   };
@@ -582,8 +596,23 @@ function startReorder(e, index, div) {
   window.addEventListener('pointerup', onUp);
 }
 
-// Insertion index: before/after the item whose center is nearest the pointer.
-function findDropIndex(x, y, dragIndex) {
+// Dropping in the central zone of another image swaps the two; dropping
+// around an image (near its edges or between items) inserts at that spot.
+function findDropTarget(x, y, dragIndex) {
+  const CENTER = 0.6; // inner fraction that counts as "on top"
+  for (let i = 0; i < itemEls.length; i++) {
+    if (i === dragIndex) continue;
+    const r = itemEls[i].getBoundingClientRect();
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+    const fx = (x - r.left) / r.width;
+    const fy = (y - r.top) / r.height;
+    const edge = (1 - CENTER) / 2;
+    if (fx > edge && fx < 1 - edge && fy > edge && fy < 1 - edge) {
+      return { mode: 'swap', index: i };
+    }
+    return { mode: 'insert', index: i + (fx > 0.5 ? 1 : 0) };
+  }
+  // Not over any item: insert before/after the nearest one.
   let bestI = -1;
   let bestD = Infinity;
   let after = false;
@@ -599,8 +628,8 @@ function findDropIndex(x, y, dragIndex) {
       after = x > cx;
     }
   });
-  if (bestI < 0) return items.length;
-  return bestI + (after ? 1 : 0);
+  if (bestI < 0) return { mode: 'insert', index: items.length };
+  return { mode: 'insert', index: bestI + (after ? 1 : 0) };
 }
 
 function positionIndicator(indicator, dropIndex) {
