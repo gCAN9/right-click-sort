@@ -6,6 +6,8 @@ const urlForm = document.getElementById('url-form');
 const urlInput = document.getElementById('url-input');
 const entryStatus = document.getElementById('entry-status');
 const canvasEl = document.getElementById('canvas');
+const canvasWrap = document.getElementById('canvas-wrap');
+const canvasScroller = document.getElementById('canvas-scroller');
 const canvasW = document.getElementById('canvas-w');
 const canvasH = document.getElementById('canvas-h');
 const paddingRange = document.getElementById('padding-range');
@@ -16,6 +18,10 @@ const backBtn = document.getElementById('back-btn');
 // Each item: { src, name, natW, natH, width (current display width px) }
 let items = [];
 let itemEls = [];
+
+// The canvas keeps its logical pixel size; on small screens it is visually
+// scaled down to fit. Pointer math divides by this where needed.
+let viewScale = 1;
 
 const SNAP_DIST = 8;
 
@@ -168,10 +174,25 @@ function applyLayout() {
 // ---------- Rendering ----------
 
 function applyCanvasStyle() {
-  canvasEl.style.width = `${canvasWidth()}px`;
-  canvasEl.style.height = `${parseInt(canvasH.value, 10) || 800}px`;
+  const cw = canvasWidth();
+  const ch = canvasHeight();
+  canvasEl.style.width = `${cw}px`;
+  canvasEl.style.height = `${ch}px`;
   paddingValue.textContent = `${gapPx()}px`;
+
+  // Fit-to-width scaling for small screens (never enlarges past 1:1).
+  const avail = canvasScroller.clientWidth - 2 * 12;
+  viewScale = Math.min(1, avail > 0 ? avail / cw : 1);
+  canvasEl.style.transform = viewScale < 1 ? `scale(${viewScale})` : '';
+  canvasWrap.style.width = `${cw * viewScale}px`;
+  canvasWrap.style.height = `${ch * viewScale}px`;
+  // Counter-scale factor for handles/badges (capped so they don't get huge).
+  canvasEl.style.setProperty('--ui', Math.min(3, 1 / viewScale));
 }
+
+window.addEventListener('resize', () => {
+  if (!workspaceView.hidden) applyCanvasStyle();
+});
 
 function render() {
   applyCanvasStyle();
@@ -392,7 +413,7 @@ function startResize(e, index, div) {
   };
   update(startW);
 
-  const onMove = (ev) => update(startW + (ev.clientX - startX));
+  const onMove = (ev) => update(startW + (ev.clientX - startX) / viewScale);
   const onUp = () => {
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
@@ -421,7 +442,7 @@ function startReorder(e, index, div) {
       div.classList.add('dragging');
       ghost = div.cloneNode(true);
       ghost.classList.add('drag-ghost');
-      ghost.style.width = `${div.offsetWidth * 0.6}px`;
+      ghost.style.width = `${div.offsetWidth * viewScale * 0.6}px`;
       ghost.style.left = '';
       ghost.style.top = '';
       document.body.appendChild(ghost);
@@ -476,19 +497,20 @@ function findDropIndex(x, y, dragIndex) {
 }
 
 function positionIndicator(indicator, dropIndex) {
+  // Screen-space rects → the canvas's logical coordinates (it may be scaled).
   const canvasRect = canvasEl.getBoundingClientRect();
   let r;
   let left;
   if (dropIndex < itemEls.length) {
     r = itemEls[dropIndex].getBoundingClientRect();
-    left = r.left - canvasRect.left - 4;
+    left = (r.left - canvasRect.left) / viewScale - 4;
   } else {
     r = itemEls[itemEls.length - 1].getBoundingClientRect();
-    left = r.right - canvasRect.left + 1;
+    left = (r.right - canvasRect.left) / viewScale + 1;
   }
   indicator.style.left = `${left}px`;
-  indicator.style.top = `${r.top - canvasRect.top}px`;
-  indicator.style.height = `${r.height}px`;
+  indicator.style.top = `${(r.top - canvasRect.top) / viewScale}px`;
+  indicator.style.height = `${r.height / viewScale}px`;
 }
 
 // ---------- Export ----------

@@ -236,12 +236,18 @@ button.ghost:hover {
   padding: 32px;
 }
 
-.canvas {
+/* Sized to the canvas's scaled dimensions so scrolling stays correct. */
+#canvas-wrap {
   position: relative;
   margin: 0 auto;
+}
+
+.canvas {
+  position: relative;
   background: #fff;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
   overflow: hidden;
+  transform-origin: top left;
 }
 
 /* ---------- Grid items ---------- */
@@ -266,6 +272,8 @@ button.ghost:hover {
   position: absolute;
   right: 4px;
   bottom: 22px;
+  transform: scale(var(--ui, 1));
+  transform-origin: bottom right;
   padding: 3px 7px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.75);
@@ -309,6 +317,10 @@ button.ghost:hover {
   background:
     linear-gradient(135deg, transparent 50%, var(--accent) 50%);
   transition: opacity 0.1s;
+  /* Counter-scale so touch targets keep their physical size when the canvas
+     is zoomed out to fit small screens. */
+  transform: scale(var(--ui, 1));
+  transform-origin: bottom right;
 }
 
 .item:hover .resize-handle {
@@ -319,6 +331,8 @@ button.ghost:hover {
   position: absolute;
   top: 4px;
   right: 4px;
+  transform: scale(var(--ui, 1));
+  transform-origin: top right;
   width: 20px;
   height: 20px;
   padding: 0;
@@ -354,4 +368,47 @@ button.ghost:hover {
   border-radius: 2px;
   z-index: 3;
   pointer-events: none;
+}
+
+/* ---------- Touch & small screens ---------- */
+
+/* No hover on touch devices: keep the controls visible. */
+@media (hover: none) {
+  .item .resize-handle,
+  .item .remove-btn {
+    opacity: 0.85;
+  }
+}
+
+@media (max-width: 700px) {
+  #app-title {
+    font-size: 26px;
+    margin-bottom: 24px;
+  }
+
+  /* 16px prevents iOS Safari from zooming in on focus. */
+  #url-input {
+    padding: 18px 20px;
+    font-size: 16px;
+  }
+
+  #toolbar {
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    padding: 10px 12px;
+  }
+
+  .control.grow {
+    order: 1;
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  button.primary {
+    margin-left: 0;
+  }
+
+  #canvas-scroller {
+    padding: 12px;
+  }
 }
