@@ -155,7 +155,9 @@ async function pickProfile(p) {
       const thumb = c.thumb
         ? `<img src="${escapeHtml(proxied(c.thumb))}" alt="" loading="lazy" />`
         : '<span class="thumb-placeholder"></span>';
-      b.innerHTML = `${thumb}<span class="col-name">${escapeHtml(c.name)}</span><span class="col-count">${c.count} item${c.count === 1 ? '' : 's'}</span>`;
+      const chainBadge =
+        c.chain && c.chain !== 'ethereum' ? `<span class="col-chain">${escapeHtml(c.chain)}</span>` : '';
+      b.innerHTML = `${thumb}<span class="col-name">${escapeHtml(c.name)}</span>${chainBadge}<span class="col-count">${c.count} item${c.count === 1 ? '' : 's'}</span>`;
       b.addEventListener('click', () => pickCollection(c));
       collectionsList.appendChild(b);
     });
@@ -168,7 +170,7 @@ async function pickCollection(c) {
   setStatus(`Fetching ${c.name}…`);
   try {
     const r = await fetch(
-      `/api/collection-items?address=${activeProfile.address}&contract=${c.contract}`
+      `/api/collection-items?address=${activeProfile.address}&contract=${c.contract}&chain=${encodeURIComponent(c.chain || 'ethereum')}`
     );
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);

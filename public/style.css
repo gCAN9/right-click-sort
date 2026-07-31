@@ -239,6 +239,18 @@ body {
   white-space: nowrap;
 }
 
+.collection-row .col-chain {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .collection-row .col-count {
   color: var(--text-dim);
   font-size: 12px;

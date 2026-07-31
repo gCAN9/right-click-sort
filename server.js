@@ -64,7 +64,8 @@ http
     if (u.pathname === '/api/collection-items') {
       const r = await collectionItemsResponse(
         u.searchParams.get('address'),
-        u.searchParams.get('contract')
+        u.searchParams.get('contract'),
+        u.searchParams.get('chain')
       );
       return json(res, r.status, r.body);
     }
