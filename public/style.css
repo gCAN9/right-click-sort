@@ -43,6 +43,15 @@ body {
   justify-content: center;
 }
 
+#app-title {
+  font-family: "Palatino", "Georgia", "Times New Roman", ui-serif, serif;
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  margin-bottom: 36px;
+}
+
 #url-form {
   width: min(680px, 90vw);
 }
