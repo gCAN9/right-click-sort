@@ -568,7 +568,7 @@ function startReorder(e, index, div) {
     clearSwapHighlight();
     if (drop.mode === 'swap') {
       indicator.hidden = true;
-      itemEls[drop.index].classList.add('swap-target');
+      drop.indices.forEach((i) => itemEls[i].classList.add('swap-target'));
     } else {
       indicator.hidden = false;
       positionIndicator(indicator, drop.index);
@@ -584,7 +584,7 @@ function startReorder(e, index, div) {
     ghost.remove();
     indicator.remove();
     if (drop.mode === 'swap') {
-      [items[index], items[drop.index]] = [items[drop.index], items[index]];
+      applyGroupSwap(index, drop.indices);
     } else if (drop.index !== index && drop.index !== index + 1) {
       const [moved] = items.splice(index, 1);
       items.splice(drop.index > index ? drop.index - 1 : drop.index, 0, moved);
@@ -596,9 +596,32 @@ function startReorder(e, index, div) {
   window.addEventListener('pointerup', onUp);
 }
 
-// Dropping in the central zone of another image swaps the two; dropping
-// around an image (near its edges or between items) inserts at that spot.
+// Dropping on top of other images swaps places. The dragged image's own
+// footprint (projected around the pointer) decides what it lands on: every
+// image whose center falls inside it swaps as a group — so a large image
+// trades places with all the smaller ones it covers. Dropping around an
+// image (near its edges or between items) inserts at that spot instead.
 function findDropTarget(x, y, dragIndex) {
+  const canvasRect = canvasEl.getBoundingClientRect();
+  const px = (x - canvasRect.left) / viewScale;
+  const py = (y - canvasRect.top) / viewScale;
+  const it = items[dragIndex];
+  const w = it.width;
+  const h = itemHeight(it);
+  const P = { l: px - w / 2, t: py - h / 2, r: px + w / 2, b: py + h / 2 };
+
+  const rects = computeLayout();
+  const group = [];
+  rects.forEach((r, i) => {
+    if (i === dragIndex) return;
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    if (cx > P.l && cx < P.r && cy > P.t && cy < P.b) group.push(i);
+  });
+  if (group.length) return { mode: 'swap', indices: group };
+
+  // Footprint covers no centers — fall back to the hovered item's zones
+  // (covers dragging a small image onto a larger one).
   const CENTER = 0.6; // inner fraction that counts as "on top"
   for (let i = 0; i < itemEls.length; i++) {
     if (i === dragIndex) continue;
@@ -608,7 +631,7 @@ function findDropTarget(x, y, dragIndex) {
     const fy = (y - r.top) / r.height;
     const edge = (1 - CENTER) / 2;
     if (fx > edge && fx < 1 - edge && fy > edge && fy < 1 - edge) {
-      return { mode: 'swap', index: i };
+      return { mode: 'swap', indices: [i] };
     }
     return { mode: 'insert', index: i + (fx > 0.5 ? 1 : 0) };
   }
@@ -630,6 +653,25 @@ function findDropTarget(x, y, dragIndex) {
   });
   if (bestI < 0) return { mode: 'insert', index: items.length };
   return { mode: 'insert', index: bestI + (after ? 1 : 0) };
+}
+
+// The dragged item takes the group's place (at the group's first slot); the
+// group members move together into the dragged item's old slot.
+function applyGroupSwap(dragIndex, group) {
+  const sorted = [...group].sort((a, b) => a - b);
+  const groupSet = new Set(sorted);
+  const first = sorted[0];
+  const out = [];
+  items.forEach((it, i) => {
+    if (i === dragIndex) {
+      sorted.forEach((g) => out.push(items[g]));
+    } else if (i === first) {
+      out.push(items[dragIndex]);
+    } else if (!groupSet.has(i)) {
+      out.push(it);
+    }
+  });
+  items = out;
 }
 
 function positionIndicator(indicator, dropIndex) {
