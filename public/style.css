@@ -191,11 +191,56 @@ body {
 #collections-list {
   margin-top: 14px;
   max-height: 38vh;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   text-align: left;
+}
+
+.col-progress {
+  padding: 14px 16px 6px;
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.25s ease;
+}
+
+.col-progress .dropdown-note {
+  padding: 10px 0 6px;
+}
+
+#collections-search {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  outline: none;
+  flex-shrink: 0;
+}
+
+#collections-search::placeholder {
+  color: var(--text-dim);
+}
+
+#collections-results {
+  overflow: auto;
+  flex: 1;
 }
 
 .collection-row {

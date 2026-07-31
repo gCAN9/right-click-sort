@@ -58,7 +58,7 @@ http
       return json(res, r.status, r.body);
     }
     if (u.pathname === '/api/collections') {
-      const r = await collectionsResponse(u.searchParams.get('address'));
+      const r = await collectionsResponse(u.searchParams.get('address'), u.searchParams.get('chain'));
       return json(res, r.status, r.body);
     }
     if (u.pathname === '/api/collection-items') {

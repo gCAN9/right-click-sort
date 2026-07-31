@@ -132,38 +132,104 @@ async function searchProfiles(q) {
   }
 }
 
+const CHAINS = ['ethereum', 'base', 'polygon', 'arbitrum', 'optimism', 'zksync', 'gnosis'];
+const MAX_FILTER_RESULTS = 100;
+let allCollections = [];
+
+// Same ordering as the server: alphabetical, address-only names last.
+function sortCollections(list) {
+  const isAddrName = (n) => /^0x[0-9a-f]{4}/i.test(n);
+  list.sort((a, b) => {
+    if (isAddrName(a.name) !== isAddrName(b.name)) return isAddrName(a.name) ? 1 : -1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+  });
+}
+
 async function pickProfile(p) {
   activeProfile = p;
   profileInput.value = p.name;
   profileResults.hidden = true;
   collectionsList.hidden = false;
-  collectionsList.innerHTML = '<div class="dropdown-note">Loading collections…</div>';
-  try {
-    const r = await fetch(`/api/collections?address=${p.address}`);
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
-    if (!d.collections.length) {
-      collectionsList.innerHTML =
-        '<div class="dropdown-note">No NFT collections found for this wallet (Ethereum mainnet)</div>';
+  allCollections = [];
+
+  // Progress: one parallel request per chain, bar advances as chains finish.
+  collectionsList.innerHTML = `
+    <div class="col-progress">
+      <div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>
+      <div class="dropdown-note" id="col-progress-note">Loading collections… 0/${CHAINS.length} chains</div>
+    </div>`;
+  const fill = collectionsList.querySelector('.progress-fill');
+  const note = collectionsList.querySelector('#col-progress-note');
+  let done = 0;
+
+  await Promise.allSettled(
+    CHAINS.map(async (chain) => {
+      try {
+        const r = await fetch(`/api/collections?address=${p.address}&chain=${chain}`);
+        const d = await r.json();
+        if (r.ok) allCollections.push(...d.collections);
+      } catch {}
+      done++;
+      fill.style.width = `${Math.round((done / CHAINS.length) * 100)}%`;
+      note.textContent = `Loading collections… ${done}/${CHAINS.length} chains · ${allCollections.length} found`;
+    })
+  );
+
+  if (activeProfile !== p) return; // user picked a different profile meanwhile
+  if (!allCollections.length) {
+    collectionsList.innerHTML =
+      '<div class="dropdown-note">No NFT collections found for this wallet</div>';
+    return;
+  }
+  sortCollections(allCollections);
+
+  collectionsList.innerHTML = `
+    <input id="collections-search" type="text" spellcheck="false" autocomplete="off"
+      placeholder="Type to filter ${allCollections.length} collections…" />
+    <div id="collections-results"></div>`;
+  const search = collectionsList.querySelector('#collections-search');
+  const results = collectionsList.querySelector('#collections-results');
+
+  const renderMatches = () => {
+    const q = search.value.trim().toLowerCase();
+    results.innerHTML = '';
+    if (!q) {
+      results.innerHTML = `<div class="dropdown-note">${allCollections.length} collections loaded — start typing to filter</div>`;
       return;
     }
-    collectionsList.innerHTML = '';
-    d.collections.forEach((c) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'collection-row';
-      const thumb = c.thumb
-        ? `<img src="${escapeHtml(proxied(c.thumb))}" alt="" loading="lazy" />`
-        : '<span class="thumb-placeholder"></span>';
-      const chainBadge =
-        c.chain && c.chain !== 'ethereum' ? `<span class="col-chain">${escapeHtml(c.chain)}</span>` : '';
-      b.innerHTML = `${thumb}<span class="col-name">${escapeHtml(c.name)}</span>${chainBadge}<span class="col-count">${c.count} item${c.count === 1 ? '' : 's'}</span>`;
-      b.addEventListener('click', () => pickCollection(c));
-      collectionsList.appendChild(b);
-    });
-  } catch (e) {
-    collectionsList.innerHTML = `<div class="dropdown-note">${escapeHtml(e.message)}</div>`;
-  }
+    const matches = allCollections.filter(
+      (c) => c.name.toLowerCase().includes(q) || (c.symbol || '').toLowerCase().includes(q)
+    );
+    if (!matches.length) {
+      results.innerHTML = '<div class="dropdown-note">No collections match</div>';
+      return;
+    }
+    matches.slice(0, MAX_FILTER_RESULTS).forEach((c) => results.appendChild(collectionRow(c)));
+    if (matches.length > MAX_FILTER_RESULTS) {
+      results.insertAdjacentHTML(
+        'beforeend',
+        `<div class="dropdown-note">+${matches.length - MAX_FILTER_RESULTS} more — keep typing to narrow down</div>`
+      );
+    }
+  };
+
+  search.addEventListener('input', renderMatches);
+  renderMatches();
+  search.focus();
+}
+
+function collectionRow(c) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'collection-row';
+  const thumb = c.thumb
+    ? `<img src="${escapeHtml(proxied(c.thumb))}" alt="" loading="lazy" />`
+    : '<span class="thumb-placeholder"></span>';
+  const chainBadge =
+    c.chain && c.chain !== 'ethereum' ? `<span class="col-chain">${escapeHtml(c.chain)}</span>` : '';
+  b.innerHTML = `${thumb}<span class="col-name">${escapeHtml(c.name)}</span>${chainBadge}<span class="col-count">${c.count} item${c.count === 1 ? '' : 's'}</span>`;
+  b.addEventListener('click', () => pickCollection(c));
+  return b;
 }
 
 async function pickCollection(c) {
