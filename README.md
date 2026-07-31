@@ -30,18 +30,25 @@ Then open http://localhost:3000. No dependencies (Node 18+).
    - **Remove** — × button in an image's top-right corner.
 3. **Save as picture** exports the canvas as a 2× PNG (`nft-grid.png`).
 
-## Deploy (Render.com, free)
+## Deploy
 
-The repo contains a `render.yaml` blueprint:
+### Vercel (recommended — no idle spin-down)
 
-1. Sign in at [render.com](https://render.com) (GitHub login works).
-2. **New → Blueprint**, pick this repository, accept the defaults.
-3. Render builds and serves the app at `https://right-click-sort.onrender.com`
-   (or similar). Optionally set `OPENSEA_API_KEY` in the service's environment
+Static files ship from Vercel's CDN and `api/nfts.js` / `api/img.js` run as
+serverless functions (shared logic lives in `lib/opensea.js`):
+
+1. Sign in at [vercel.com](https://vercel.com) (GitHub login works).
+2. **Add New → Project**, import this repository, keep the defaults
+   (no framework, no build command), deploy.
+3. The app is live at `https://right-click-sort.vercel.app` (or similar).
+   Optionally set `OPENSEA_API_KEY` under Settings → Environment Variables
    for more reliable collection fetching.
 
-Notes for the free tier: the instance spins down when idle, so the first
-request after a quiet period takes ~30–60 s to wake up.
+### Render.com (alternative)
+
+A `render.yaml` blueprint is included: **New → Blueprint**, pick this repo.
+Note that Render's free tier spins down when idle (first request after a
+quiet period takes ~30–60 s); Vercel does not.
 
 ## Notes
 
