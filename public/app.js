@@ -190,18 +190,50 @@ async function pickProfile(p) {
   const search = collectionsList.querySelector('#collections-search');
   const results = collectionsList.querySelector('#collections-results');
 
-  const renderMatches = () => {
-    const q = search.value.trim().toLowerCase();
+  const renderMatches = async () => {
+    const raw = search.value.trim();
+    const q = raw.toLowerCase();
     results.innerHTML = '';
     if (!q) {
-      results.innerHTML = `<div class="dropdown-note">${allCollections.length} collections loaded — start typing to filter</div>`;
+      results.innerHTML = `<div class="dropdown-note">${allCollections.length} collections loaded — start typing to filter. You can also paste an OpenSea collection URL.</div>`;
       return;
     }
+
+    // Pasted OpenSea collection URL: resolve the slug to its contract, since
+    // many contracts (ERC-1155 editions) have no on-chain name to match on.
+    const slugMatch = raw.match(/opensea\.io\/collection\/([a-z0-9-]+)/i);
+    if (slugMatch) {
+      results.innerHTML = '<div class="dropdown-note">Resolving collection…</div>';
+      try {
+        const r = await fetch(`/api/resolve-collection?slug=${encodeURIComponent(slugMatch[1])}`);
+        const d = await r.json();
+        if (search.value.trim() !== raw) return; // stale
+        if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+        const held = allCollections.find(
+          (c) => c.contract === d.contract.toLowerCase() && c.chain === d.chain
+        );
+        results.innerHTML = '';
+        if (held) {
+          results.appendChild(collectionRow({ ...held, name: `${slugMatch[1]} (${held.name})` }));
+        } else {
+          results.innerHTML =
+            '<div class="dropdown-note">This wallet holds nothing from that collection (or its chain is not supported).</div>';
+        }
+      } catch (e) {
+        results.innerHTML = `<div class="dropdown-note">${escapeHtml(e.message)}</div>`;
+      }
+      return;
+    }
+
     const matches = allCollections.filter(
-      (c) => c.name.toLowerCase().includes(q) || (c.symbol || '').toLowerCase().includes(q)
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.symbol || '').toLowerCase().includes(q) ||
+        c.contract.includes(q)
     );
     if (!matches.length) {
-      results.innerHTML = '<div class="dropdown-note">No collections match</div>';
+      results.innerHTML =
+        '<div class="dropdown-note">No collections match — try pasting the OpenSea collection URL</div>';
       return;
     }
     matches.slice(0, MAX_FILTER_RESULTS).forEach((c) => results.appendChild(collectionRow(c)));
