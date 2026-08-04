@@ -30,18 +30,41 @@
   <!-- View 2: workspace -->
   <section id="workspace-view" class="view" hidden>
     <header id="toolbar">
-      <button id="back-btn" class="ghost" title="Start over">&larr;</button>
+      <!-- Icons: Lucide (lucide.dev, ISC license), inlined -->
+      <button id="back-btn" class="ghost" title="Start over">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      </button>
+      <button id="undo-btn" class="ghost" title="Undo (Ctrl/Cmd+Z)" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/></svg>
+      </button>
+      <button id="redo-btn" class="ghost" title="Redo (Shift+Ctrl/Cmd+Z)" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/></svg>
+      </button>
       <div class="control">
         <label for="canvas-w">Canvas</label>
         <input id="canvas-w" type="number" min="200" max="8000" step="10" value="1200" />
         <span class="times">&times;</span>
-        <input id="canvas-h" type="number" min="200" max="8000" step="10" value="800" />
+        <input id="canvas-h" type="number" min="200" max="8000" step="10" value="1200" />
         <span class="unit">px</span>
+      </div>
+      <div class="control">
+        <label for="bg-color">Background</label>
+        <input id="bg-color" type="color" value="#ffffff" />
       </div>
       <div class="control grow">
         <label for="padding-range">Padding</label>
         <input id="padding-range" type="range" min="0" max="80" step="1" value="12" />
         <span id="padding-value" class="unit">12px</span>
+      </div>
+      <div class="control" id="add-control">
+        <input
+          id="add-search"
+          type="text"
+          placeholder="Add collection…"
+          spellcheck="false"
+          autocomplete="off"
+        />
+        <div id="add-results" class="dropdown" hidden></div>
       </div>
       <div class="control">
         <label>Auto</label>
@@ -49,13 +72,24 @@
         <button id="auto-rows" class="chip" title="Justified rows spanning the full width">Rows</button>
         <button id="auto-mosaic" class="chip" title="Mixed sizes packed to fill the canvas">Mosaic</button>
       </div>
-      <button id="export-btn" class="primary">Save as picture</button>
+      <div class="split-btn" id="export-split">
+        <button id="export-btn" class="primary">Save as picture</button>
+        <button id="export-more" class="primary arrow" title="Export options">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="export-menu" class="dropdown" hidden>
+          <button type="button" class="dropdown-row" id="export-hires">
+            <span>High-res export</span><span class="addr">3&times;, original images</span>
+          </button>
+        </div>
+      </div>
     </header>
     <main id="canvas-scroller">
       <div id="canvas-wrap">
         <div id="canvas" class="canvas"></div>
       </div>
     </main>
+    <div id="load-pill" hidden></div>
   </section>
 
   <script src="app.js"></script>

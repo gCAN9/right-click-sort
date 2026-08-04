@@ -9,6 +9,7 @@ const canvasScroller = document.getElementById('canvas-scroller');
 const canvasW = document.getElementById('canvas-w');
 const canvasH = document.getElementById('canvas-h');
 const paddingRange = document.getElementById('padding-range');
+const bgColor = document.getElementById('bg-color');
 const paddingValue = document.getElementById('padding-value');
 const exportBtn = document.getElementById('export-btn');
 const backBtn = document.getElementById('back-btn');
@@ -21,6 +22,68 @@ let itemEls = [];
 // scaled down to fit. Pointer math divides by this where needed.
 let viewScale = 1;
 
+// ---------- Undo / redo ----------
+
+const undoBtn = document.getElementById('undo-btn');
+const redoBtn = document.getElementById('redo-btn');
+const HISTORY_MAX = 50;
+let history = [];
+let future = [];
+
+const snapshotItems = () => items.map((it) => ({ ...it }));
+
+function updateUndoButtons() {
+  undoBtn.disabled = !history.length;
+  redoBtn.disabled = !future.length;
+}
+
+// Push a pre-mutation snapshot onto the undo stack.
+function commitHistory(pre) {
+  history.push(pre);
+  if (history.length > HISTORY_MAX) history.shift();
+  future = [];
+  updateUndoButtons();
+}
+
+function resetHistory() {
+  history = [];
+  future = [];
+  updateUndoButtons();
+}
+
+function undo() {
+  if (!history.length) return;
+  future.push(snapshotItems());
+  items = history.pop();
+  updateUndoButtons();
+  render();
+}
+
+function redo() {
+  if (!future.length) return;
+  history.push(snapshotItems());
+  items = future.pop();
+  updateUndoButtons();
+  render();
+}
+
+undoBtn.addEventListener('click', undo);
+redoBtn.addEventListener('click', redo);
+
+window.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey)) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redo();
+    else undo();
+  } else if (e.key.toLowerCase() === 'y') {
+    e.preventDefault();
+    redo();
+  }
+});
+
 const SNAP_DIST = 8;
 
 // data: URLs (on-chain SVG art) load directly; everything else goes through
@@ -28,9 +91,16 @@ const SNAP_DIST = 8;
 const proxied = (url) =>
   url.startsWith('data:') ? url : `/api/img?u=${encodeURIComponent(url)}`;
 
+// Primary image source: wsrv.nl, a caching/resizing image CDN. Originals are
+// often multi-MB files on slow IPFS gateways; a cached ≤1200px version loads
+// orders of magnitude faster, serves CORS headers (export stays clean), and
+// parallelizes freely. Our own proxy remains the fallback.
+const cdnResized = (url) =>
+  `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=1200&fit=inside&we=1&maxage=1y`;
+
 const gapPx = () => parseInt(paddingRange.value, 10) || 0;
 const canvasWidth = () => parseInt(canvasW.value, 10) || 1200;
-const canvasHeight = () => parseInt(canvasH.value, 10) || 800;
+const canvasHeight = () => parseInt(canvasH.value, 10) || 1200;
 const itemHeight = (it) => it.width * (it.natH / it.natW);
 
 // ---------- Entry / loading ----------
@@ -67,6 +137,14 @@ profileInput.addEventListener('input', () => {
 document.addEventListener('pointerdown', (e) => {
   if (!profileResults.hidden && !e.target.closest('.picker-field')) {
     profileResults.hidden = true;
+  }
+  const addResultsEl = document.getElementById('add-results');
+  if (!addResultsEl.hidden && !e.target.closest('#add-control')) {
+    addResultsEl.hidden = true;
+  }
+  const exportMenuEl = document.getElementById('export-menu');
+  if (!exportMenuEl.hidden && !e.target.closest('#export-split')) {
+    exportMenuEl.hidden = true;
   }
 });
 
@@ -215,7 +293,7 @@ async function pickProfile(p) {
   search.focus();
 }
 
-function collectionRow(c) {
+function collectionRow(c, onClick = pickCollection) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'collection-row';
@@ -225,49 +303,223 @@ function collectionRow(c) {
   const chainBadge =
     c.chain && c.chain !== 'ethereum' ? `<span class="col-chain">${escapeHtml(c.chain)}</span>` : '';
   b.innerHTML = `${thumb}<span class="col-name">${escapeHtml(c.name)}</span>${chainBadge}<span class="col-count">${c.count} item${c.count === 1 ? '' : 's'}</span>`;
-  b.addEventListener('click', () => pickCollection(c));
+  b.addEventListener('click', () => onClick(c));
   return b;
+}
+
+async function fetchCollectionImages(c) {
+  const r = await fetch(
+    `/api/collection-items?address=${activeProfile.address}&contract=${c.contract}&chain=${encodeURIComponent(c.chain || 'ethereum')}`
+  );
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+  return d.images;
+}
+
+// ---------- Toolbar: add more collections to the current grid ----------
+
+const addSearch = document.getElementById('add-search');
+const addResults = document.getElementById('add-results');
+
+addSearch.addEventListener('input', async () => {
+  const raw = addSearch.value.trim();
+  if (!raw) {
+    addResults.hidden = true;
+    return;
+  }
+  addResults.hidden = false;
+
+  if (!activeProfile || !allCollections.length) {
+    addResults.innerHTML = '<div class="dropdown-note">No profile loaded</div>';
+    return;
+  }
+
+  // Pasted OpenSea collection URL: resolve slug → contract (unnamed contracts).
+  const slugMatch = raw.match(/opensea\.io\/collection\/([a-z0-9-]+)/i);
+  if (slugMatch) {
+    addResults.innerHTML = '<div class="dropdown-note">Resolving collection…</div>';
+    try {
+      const r = await fetch(`/api/resolve-collection?slug=${encodeURIComponent(slugMatch[1])}`);
+      const d = await r.json();
+      if (addSearch.value.trim() !== raw) return; // stale
+      if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+      const held = allCollections.find(
+        (c) => c.contract === d.contract.toLowerCase() && c.chain === d.chain
+      );
+      addResults.innerHTML = '';
+      if (held) {
+        addResults.appendChild(
+          collectionRow({ ...held, name: `${slugMatch[1]} (${held.name})` }, addCollection)
+        );
+      } else {
+        addResults.innerHTML =
+          '<div class="dropdown-note">This wallet holds nothing from that collection.</div>';
+      }
+    } catch (e) {
+      addResults.innerHTML = `<div class="dropdown-note">${escapeHtml(e.message)}</div>`;
+    }
+    return;
+  }
+
+  const q = raw.toLowerCase();
+  const matches = allCollections.filter(
+    (c) =>
+      c.name.toLowerCase().includes(q) ||
+      (c.symbol || '').toLowerCase().includes(q) ||
+      c.contract.includes(q)
+  );
+  addResults.innerHTML = '';
+  if (!matches.length) {
+    addResults.innerHTML = '<div class="dropdown-note">No collections match</div>';
+    return;
+  }
+  matches.slice(0, 12).forEach((c) => addResults.appendChild(collectionRow(c, addCollection)));
+  if (matches.length > 12) {
+    addResults.insertAdjacentHTML(
+      'beforeend',
+      `<div class="dropdown-note">+${matches.length - 12} more — keep typing</div>`
+    );
+  }
+});
+
+async function addCollection(c) {
+  addResults.innerHTML = `<div class="dropdown-note">Fetching ${escapeHtml(c.name)}…</div>`;
+  try {
+    const images = await fetchCollectionImages(c);
+    // Skip images already on the canvas (compared by original URL).
+    const have = new Set(items.map((it) => it.orig || it.src));
+    const fresh = images.filter((img) => !have.has(img.url));
+    const skipped = images.length - fresh.length;
+
+    const note = addResults.querySelector('.dropdown-note');
+    const w = defaultItemWidth();
+    const pre = snapshotItems();
+    let added = 0;
+    await loadImagesProgressive(fresh, (it, n) => {
+      it.width = w;
+      items.push(it);
+      added++;
+      scheduleRender();
+      note.textContent = `Loading ${n}/${fresh.length}…`;
+    });
+
+    if (added) commitHistory(pre);
+    note.textContent = `Added ${added} image${added === 1 ? '' : 's'}${skipped ? ` (${skipped} already on the canvas)` : ''}`;
+    addSearch.value = '';
+    setTimeout(() => {
+      if (!addSearch.value.trim()) addResults.hidden = true;
+    }, 2000);
+  } catch (e) {
+    addResults.innerHTML = `<div class="dropdown-note">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+const loadPill = document.getElementById('load-pill');
+
+function showLoadPill(text) {
+  loadPill.hidden = false;
+  loadPill.textContent = text;
+}
+
+function hideLoadPill() {
+  loadPill.hidden = true;
+}
+
+// Default width for images newly placed on the canvas (4-column fit).
+function defaultItemWidth() {
+  const gap = gapPx();
+  return Math.floor((canvasWidth() - gap * 5) / 4);
 }
 
 async function pickCollection(c) {
   setStatus(`Fetching ${c.name}…`);
   try {
-    const r = await fetch(
-      `/api/collection-items?address=${activeProfile.address}&contract=${c.contract}&chain=${encodeURIComponent(c.chain || 'ethereum')}`
-    );
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
-    setStatus(`Found ${d.images.length} images — loading…`);
-    const loaded = await loadImages(d.images);
-    if (!loaded.length) throw new Error('None of the images could be loaded.');
-    items = loaded;
+    const images = await fetchCollectionImages(c);
     setStatus('');
+    // Enter the workspace right away and stream images in as they load.
+    items = [];
+    resetHistory();
     enterWorkspace();
+    const w = defaultItemWidth();
+    showLoadPill(`Loading 0/${images.length}…`);
+    const loaded = await loadImagesProgressive(images, (it, n) => {
+      it.width = w;
+      items.push(it);
+      scheduleRender();
+      showLoadPill(`Loading ${n}/${images.length}…`);
+    });
+    hideLoadPill();
+    if (!loaded) {
+      workspaceView.hidden = true;
+      entryView.hidden = false;
+      setStatus('None of the images could be loaded.', true);
+    }
   } catch (e) {
+    hideLoadPill();
     setStatus(e.message, true);
   }
 }
 
-async function loadImages(list) {
-  const results = await Promise.allSettled(
-    list.map(
-      ({ url, name }) =>
-        new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () =>
-            resolve({
-              src: proxied(url),
-              name,
-              natW: img.naturalWidth,
-              natH: img.naturalHeight,
-              width: 0,
-            });
-          img.onerror = () => reject(new Error(`failed: ${url}`));
-          img.src = proxied(url);
-        })
+// Dead or private IPFS gateways (project vanity gateways get shut down) still
+// carry the CID — rewrite to a public gateway as a fallback.
+function ipfsRewrite(url) {
+  const m = url.match(/\/ipfs\/(Qm[1-9A-HJ-NP-Za-km-z]{44}(?:\/[^?#]*)?|baf[a-zA-Z0-9]+(?:\/[^?#]*)?)/);
+  if (m && !url.startsWith('https://ipfs.io/')) return `https://ipfs.io/ipfs/${m[1]}`;
+  return null;
+}
+
+// Load one image: resizing CDN first, then CDN over a public IPFS gateway,
+// then our own proxy.
+function loadOne({ url, name }) {
+  return new Promise((resolve, reject) => {
+    let candidates;
+    if (url.startsWith('data:')) {
+      candidates = [url];
+    } else {
+      const rw = ipfsRewrite(url);
+      candidates = [cdnResized(url)];
+      if (rw) candidates.push(cdnResized(rw));
+      candidates.push(proxied(rw || url));
+    }
+    let i = 0;
+    const tryNext = () => {
+      if (i >= candidates.length) return reject(new Error(`failed: ${url}`));
+      const src = candidates[i++];
+      const img = new Image();
+      if (!src.startsWith('data:')) img.crossOrigin = 'anonymous';
+      img.onload = () =>
+        resolve({ src, orig: url, name, natW: img.naturalWidth, natH: img.naturalHeight, width: 0 });
+      img.onerror = tryNext;
+      img.src = src;
+    };
+    tryNext();
+  });
+}
+
+// Loads all images concurrently, invoking onOne(item, loadedSoFar) as each
+// arrives so the grid can fill progressively. Resolves with the loaded count.
+async function loadImagesProgressive(list, onOne) {
+  let loaded = 0;
+  await Promise.allSettled(
+    list.map((entry) =>
+      loadOne(entry).then((it) => {
+        loaded++;
+        onOne(it, loaded);
+      })
     )
   );
-  return results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+  return loaded;
+}
+
+// Coalesce many per-image renders into one per frame.
+let renderQueued = false;
+function scheduleRender() {
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    render();
+  });
 }
 
 function enterWorkspace() {
@@ -350,6 +602,7 @@ function applyCanvasStyle() {
   const ch = canvasHeight();
   canvasEl.style.width = `${cw}px`;
   canvasEl.style.height = `${ch}px`;
+  canvasEl.style.background = bgColor.value;
   paddingValue.textContent = `${gapPx()}px`;
 
   // Fit-to-width scaling for small screens (never enlarges past 1:1).
@@ -377,6 +630,7 @@ function render() {
     div.dataset.index = i;
 
     const img = document.createElement('img');
+    if (!it.src.startsWith('data:')) img.crossOrigin = 'anonymous';
     img.src = it.src;
     img.alt = it.name;
     img.draggable = false;
@@ -391,6 +645,7 @@ function render() {
     remove.textContent = '×';
     remove.title = 'Remove';
     remove.addEventListener('click', () => {
+      commitHistory(snapshotItems());
       items.splice(i, 1);
       render();
     });
@@ -413,6 +668,7 @@ canvasW.addEventListener('input', () => {
   applyCanvasStyle();
   applyLayout();
 });
+bgColor.addEventListener('input', applyCanvasStyle);
 canvasH.addEventListener('input', applyCanvasStyle);
 paddingRange.addEventListener('input', () => {
   applyCanvasStyle();
@@ -429,6 +685,7 @@ function packedBottom() {
 // closest to the canvas height without overflowing (else minimal overflow).
 function autoGrid() {
   if (!items.length) return;
+  commitHistory(snapshotItems());
   const gap = gapPx();
   const cw = canvasWidth();
   const H = canvasHeight();
@@ -449,6 +706,7 @@ function autoGrid() {
 // the target row height is binary-searched so the whole set fills the canvas.
 function autoRows() {
   if (!items.length) return;
+  commitHistory(snapshotItems());
   const gap = gapPx();
   const cw = canvasWidth();
   const H = canvasHeight();
@@ -501,6 +759,7 @@ function autoRows() {
 // the packed result best fills the canvas.
 function autoMosaic() {
   if (!items.length) return;
+  commitHistory(snapshotItems());
   const gap = gapPx();
   const cw = canvasWidth();
   const H = canvasHeight();
@@ -569,6 +828,7 @@ function startResize(e, index, div) {
   const startX = e.clientX;
   const startW = it.width;
   const maxW = canvasWidth() - 2 * gapPx();
+  const pre = snapshotItems();
 
   const badge = document.createElement('div');
   badge.className = 'size-badge';
@@ -591,6 +851,7 @@ function startResize(e, index, div) {
     window.removeEventListener('pointerup', onUp);
     badge.remove();
     div.classList.remove('no-anim', 'resizing');
+    if (it.width !== startW) commitHistory(pre);
   };
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
@@ -649,8 +910,14 @@ function startReorder(e, index, div) {
     ghost.remove();
     indicator.remove();
     if (drop.mode === 'swap') {
-      applyGroupSwap(index, drop.indices);
+      commitHistory(snapshotItems());
+      if (drop.indices.length === 1) {
+        swapImagesKeepSize(index, drop.indices[0]);
+      } else {
+        applyGroupSwap(index, drop.indices);
+      }
     } else if (drop.index !== index && drop.index !== index + 1) {
+      commitHistory(snapshotItems());
       const [moved] = items.splice(index, 1);
       items.splice(drop.index > index ? drop.index - 1 : drop.index, 0, moved);
     }
@@ -720,6 +987,18 @@ function findDropTarget(x, y, dragIndex) {
   return { mode: 'insert', index: bestI + (after ? 1 : 0) };
 }
 
+// One-on-one swap: the two slots keep their sizes and positions — only the
+// image content trades places, so the rest of the grid never reflows.
+function swapImagesKeepSize(a, b) {
+  const A = items[a];
+  const B = items[b];
+  for (const k of ['src', 'orig', 'name', 'natW', 'natH']) {
+    const t = A[k];
+    A[k] = B[k];
+    B[k] = t;
+  }
+}
+
 // The dragged item takes the group's place (at the group's first slot); the
 // group members move together into the dragged item's old slot.
 function applyGroupSwap(dragIndex, group) {
@@ -758,44 +1037,71 @@ function positionIndicator(indicator, dropIndex) {
 
 // ---------- Export ----------
 
-exportBtn.addEventListener('click', async () => {
+const exportMore = document.getElementById('export-more');
+const exportMenu = document.getElementById('export-menu');
+const exportHires = document.getElementById('export-hires');
+
+async function runExport(options) {
   exportBtn.disabled = true;
+  exportMore.disabled = true;
+  exportMenu.hidden = true;
   exportBtn.textContent = 'Rendering…';
   try {
-    await exportPng();
+    await exportPng(options);
   } catch (e) {
     alert(`Export failed: ${e.message}`);
   } finally {
+    hideLoadPill();
     exportBtn.disabled = false;
+    exportMore.disabled = false;
     exportBtn.textContent = 'Save as picture';
   }
+}
+
+exportBtn.addEventListener('click', () => runExport({}));
+exportHires.addEventListener('click', () => runExport({ scale: 3, useOriginals: true }));
+exportMore.addEventListener('click', () => {
+  exportMenu.hidden = !exportMenu.hidden;
 });
 
-async function exportPng() {
-  const scale = 2; // export at 2x for crispness
+// The fast path draws the ≤1200px CDN versions already on screen. High-res
+// pulls the originals through our proxy (slower, but full source resolution),
+// falling back to the display version per image if an original won't load.
+function loadExportBitmap(it, useOriginals) {
+  if (!useOriginals || it.src.startsWith('data:')) return loadBitmap(it.src);
+  const orig = it.orig || it.src;
+  const rw = ipfsRewrite(orig);
+  return loadBitmap(proxied(rw || orig)).catch(() => loadBitmap(it.src));
+}
+
+async function exportPng({ scale = 2, useOriginals = false } = {}) {
   const w = canvasEl.clientWidth;
   const h = canvasEl.clientHeight;
   const out = document.createElement('canvas');
   out.width = w * scale;
   out.height = h * scale;
   const ctx = out.getContext('2d');
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = bgColor.value || '#ffffff';
   ctx.fillRect(0, 0, out.width, out.height);
 
   const rects = computeLayout();
+  let done = 0;
 
   await Promise.all(
     items.map(async (it, i) => {
-      const bitmap = await loadBitmap(it.src);
+      const bitmap = await loadExportBitmap(it, useOriginals);
       const r = rects[i];
       ctx.drawImage(bitmap, r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+      done++;
+      if (useOriginals) showLoadPill(`Rendering high-res… ${done}/${items.length}`);
     })
   );
+  hideLoadPill();
 
   const blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png'));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'nft-grid.png';
+  a.download = useOriginals ? 'nft-grid-hires.png' : 'nft-grid.png';
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -803,6 +1109,7 @@ async function exportPng() {
 function loadBitmap(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    if (!src.startsWith('data:')) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('image load failed during export'));
     img.src = src;

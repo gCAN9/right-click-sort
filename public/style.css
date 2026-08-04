@@ -11,7 +11,8 @@
   --border: #2e313d;
   --text: #e8e9ed;
   --text-dim: #8a8d99;
-  --accent: #6c7bff;
+  --accent: #8119b7; /* CryptoPunk 1242's cap */
+  --accent-soft: rgba(129, 25, 183, 0.22);
   --danger: #ff5c6c;
 }
 
@@ -88,7 +89,7 @@ body {
 
 #profile-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(108, 123, 255, 0.15);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 .dropdown {
@@ -324,6 +325,35 @@ body {
   accent-color: var(--accent);
 }
 
+#add-control {
+  position: relative;
+}
+
+#add-search {
+  width: 190px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
+#add-search::placeholder {
+  color: var(--text-dim);
+}
+
+#add-search:focus {
+  border-color: var(--accent);
+}
+
+#add-results {
+  right: auto;
+  width: 320px;
+  max-width: 84vw;
+}
+
 .times,
 .unit {
   color: var(--text-dim);
@@ -346,11 +376,40 @@ button {
 button.primary {
   background: var(--accent);
   color: #fff;
-  margin-left: auto;
 }
 
 button.primary:hover {
   filter: brightness(1.1);
+}
+
+button.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+  filter: none;
+}
+
+.split-btn {
+  position: relative;
+  display: flex;
+  margin-left: auto;
+}
+
+.split-btn #export-btn {
+  border-radius: 8px 0 0 8px;
+}
+
+.split-btn #export-more {
+  border-radius: 0 8px 8px 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.35);
+  padding: 8px 9px;
+  font-size: 11px;
+}
+
+.split-btn .dropdown {
+  left: auto;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 250px;
 }
 
 button.chip {
@@ -369,11 +428,42 @@ button.ghost {
   background: transparent;
   color: var(--text-dim);
   font-size: 16px;
-  padding: 6px 10px;
+  padding: 6px 8px;
+}
+
+button.ghost svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+#export-more svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+input[type='color'] {
+  width: 36px;
+  height: 26px;
+  padding: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
 }
 
 button.ghost:hover {
   color: var(--text);
+}
+
+button.ghost:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+button.ghost:disabled:hover {
+  color: var(--text-dim);
 }
 
 #canvas-scroller {
@@ -394,6 +484,22 @@ button.ghost:hover {
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
   overflow: hidden;
   transform-origin: top left;
+}
+
+#load-pill {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  z-index: 20;
 }
 
 /* ---------- Grid items ---------- */
@@ -517,7 +623,7 @@ button.ghost:hover {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(108, 123, 255, 0.25);
+  background: var(--accent-soft);
   pointer-events: none;
 }
 
