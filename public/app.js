@@ -2,8 +2,6 @@
 
 const entryView = document.getElementById('entry-view');
 const workspaceView = document.getElementById('workspace-view');
-const urlForm = document.getElementById('url-form');
-const urlInput = document.getElementById('url-input');
 const entryStatus = document.getElementById('entry-status');
 const canvasEl = document.getElementById('canvas');
 const canvasWrap = document.getElementById('canvas-wrap');
@@ -36,39 +34,6 @@ const canvasHeight = () => parseInt(canvasH.value, 10) || 800;
 const itemHeight = (it) => it.width * (it.natH / it.natW);
 
 // ---------- Entry / loading ----------
-
-urlForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const url = urlInput.value.trim();
-  if (!url) return;
-
-  urlInput.classList.add('loading');
-  setStatus('Fetching NFT images…');
-
-  try {
-    const r = await fetch(`/api/nfts?url=${encodeURIComponent(url)}`);
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || `Server responded ${r.status}`);
-
-    setStatus(`Found ${data.images.length} images — loading…`);
-    const loaded = await loadImages(data.images);
-    if (!loaded.length) throw new Error('None of the images could be loaded.');
-
-    items = loaded;
-    enterWorkspace();
-  } catch (err) {
-    setStatus(err.message, true);
-  } finally {
-    urlInput.classList.remove('loading');
-  }
-});
-
-urlInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    urlForm.requestSubmit();
-  }
-});
 
 function setStatus(msg, isError = false) {
   entryStatus.hidden = !msg;
@@ -321,7 +286,7 @@ backBtn.addEventListener('click', () => {
   workspaceView.hidden = true;
   entryView.hidden = false;
   setStatus('');
-  urlInput.select();
+  profileInput.focus();
 });
 
 // ---------- Layout: top-left first-fit packing ----------

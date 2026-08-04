@@ -13,19 +13,16 @@ Then open http://localhost:3000. No dependencies (Node 18+).
 
 ## Use
 
-1. Pick images either way:
-   - **Profile picker**: search a profile (exact OpenSea username, ENS name,
-     or 0x address), pick it from the dropdown, then choose one of the
-     wallet's collections — its held items load into the grid. Resolution is
-     on-chain via Blockscout (Ethereum mainnet).
-   - **URL**: paste an OpenSea URL and press Enter. Supported:
-   - Collection: `opensea.io/collection/{slug}`
-   - Single item: `opensea.io/assets/{chain}/{contract}/{tokenId}`
-   - Profile / filtered profile view:
-     `opensea.io/{user}?addresses=0x…,0x…&collectionSlugs=slug1,slug2`
-     (wallet holdings are resolved on-chain via public Blockscout indexers, so
-     it works even for wallet filters OpenSea only shows when logged in; with
-     no `addresses` param the profile's public wallet is used)
+1. Search a profile (exact OpenSea username, ENS name, or 0x address) and
+   pick it from the dropdown. The wallet's NFT collections load across all
+   supported chains (Ethereum, Base, Polygon, Arbitrum, Optimism, zkSync,
+   Gnosis — resolved on-chain via public Blockscout indexers) with a progress
+   bar; type in the filter field to find a collection, or paste an OpenSea
+   collection URL to locate one whose contract has no on-chain name. Picking
+   a collection loads the wallet's held items into the grid.
+
+   (The `/api/nfts?url=…` endpoint for OpenSea collection/item/profile URLs
+   still exists for direct use, but is no longer part of the UI.)
 2. Arrange:
    - **Canvas** — set the output size in px in the toolbar.
    - **Resize** — drag the corner handle of any image; proportions are

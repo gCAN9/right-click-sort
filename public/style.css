@@ -53,50 +53,6 @@ body {
   margin-bottom: 36px;
 }
 
-#url-form {
-  width: min(680px, 90vw);
-}
-
-/* Oversized field, generous padding, deliberately smaller-than-expected text. */
-#url-input {
-  width: 100%;
-  padding: 26px 32px;
-  font-size: 15px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-#url-input::placeholder {
-  color: var(--text-dim);
-}
-
-#url-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(108, 123, 255, 0.15);
-}
-
-#url-input.loading {
-  animation: pulse 1.2s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes pulse {
-  0%, 100% { border-color: var(--border); }
-  50% { border-color: var(--accent); }
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
 .entry-status {
   margin-top: 14px;
   text-align: center;
@@ -105,14 +61,6 @@ body {
 }
 
 /* ---------- Profile picker ---------- */
-
-.or-divider {
-  margin: 22px 0;
-  font-size: 13px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
 
 #profile-picker {
   width: min(680px, 90vw);
@@ -599,8 +547,7 @@ button.ghost:hover {
   }
 
   /* 16px prevents iOS Safari from zooming in on focus. */
-  #url-input {
-    padding: 18px 20px;
+  #profile-input {
     font-size: 16px;
   }
 
