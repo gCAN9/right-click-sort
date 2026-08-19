@@ -135,8 +135,12 @@ profileInput.addEventListener('input', () => {
 });
 
 document.addEventListener('pointerdown', (e) => {
-  if (!profileResults.hidden && !e.target.closest('.picker-field')) {
+  if (!profileResults.hidden && !e.target.closest('#profile-picker .picker-field')) {
     profileResults.hidden = true;
+  }
+  const collectionResultsEl = document.getElementById('collection-results');
+  if (!collectionResultsEl.hidden && !e.target.closest('#collection-picker .picker-field')) {
+    collectionResultsEl.hidden = true;
   }
   const addResultsEl = document.getElementById('add-results');
   if (!addResultsEl.hidden && !e.target.closest('#add-control')) {
@@ -431,29 +435,99 @@ function defaultItemWidth() {
   return Math.floor((canvasWidth() - gap * 5) / 4);
 }
 
+// Enter the workspace right away and stream images in as they load.
+async function streamIntoWorkspace(images) {
+  items = [];
+  resetHistory();
+  enterWorkspace();
+  const w = defaultItemWidth();
+  showLoadPill(`Loading 0/${images.length}…`);
+  const loaded = await loadImagesProgressive(images, (it, n) => {
+    it.width = w;
+    items.push(it);
+    scheduleRender();
+    showLoadPill(`Loading ${n}/${images.length}…`);
+  });
+  hideLoadPill();
+  if (!loaded) {
+    workspaceView.hidden = true;
+    entryView.hidden = false;
+    setStatus('None of the images could be loaded.', true);
+  }
+}
+
 async function pickCollection(c) {
   setStatus(`Fetching ${c.name}…`);
   try {
     const images = await fetchCollectionImages(c);
     setStatus('');
-    // Enter the workspace right away and stream images in as they load.
-    items = [];
-    resetHistory();
-    enterWorkspace();
-    const w = defaultItemWidth();
-    showLoadPill(`Loading 0/${images.length}…`);
-    const loaded = await loadImagesProgressive(images, (it, n) => {
-      it.width = w;
-      items.push(it);
-      scheduleRender();
-      showLoadPill(`Loading ${n}/${images.length}…`);
-    });
+    await streamIntoWorkspace(images);
+  } catch (e) {
     hideLoadPill();
-    if (!loaded) {
-      workspaceView.hidden = true;
-      entryView.hidden = false;
-      setStatus('None of the images could be loaded.', true);
+    setStatus(e.message, true);
+  }
+}
+
+// ---------- Collection browser (whole collections, not wallet holdings) ----------
+
+const collectionInput = document.getElementById('collection-input');
+const collectionResults = document.getElementById('collection-results');
+let collectionSearchTimer = null;
+
+collectionInput.addEventListener('input', () => {
+  clearTimeout(collectionSearchTimer);
+  const q = collectionInput.value.trim();
+  if (q.length < 3) {
+    collectionResults.hidden = true;
+    return;
+  }
+  collectionSearchTimer = setTimeout(() => searchGlobalCollections(q), 400);
+});
+
+async function searchGlobalCollections(q) {
+  collectionResults.innerHTML = '<div class="dropdown-note">Searching…</div>';
+  collectionResults.hidden = false;
+  try {
+    const r = await fetch(`/api/collection-search?q=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+    if (q !== collectionInput.value.trim()) return; // stale response
+    if (!d.results.length) {
+      collectionResults.innerHTML =
+        '<div class="dropdown-note">No collections found — try the OpenSea collection URL</div>';
+      return;
     }
+    collectionResults.innerHTML = '';
+    d.results.forEach((c) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dropdown-row';
+      const meta = [
+        c.chain !== 'ethereum' ? c.chain : '',
+        c.holders ? `${c.holders.toLocaleString()} holders` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      b.innerHTML = `<span>${escapeHtml(c.name || c.contract.slice(0, 10) + '…')}</span><span class="addr">${escapeHtml(meta || c.contract.slice(0, 6) + '…' + c.contract.slice(-4))}</span>`;
+      b.addEventListener('click', () => pickGlobalCollection(c));
+      collectionResults.appendChild(b);
+    });
+  } catch (e) {
+    collectionResults.innerHTML = `<div class="dropdown-note">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function pickGlobalCollection(c) {
+  collectionResults.hidden = true;
+  setStatus(`Fetching ${c.name || 'collection'}…`);
+  try {
+    const r = await fetch(
+      `/api/collection-all?contract=${c.contract}&chain=${encodeURIComponent(c.chain || 'ethereum')}`
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
+    setStatus('');
+    await streamIntoWorkspace(d.images);
   } catch (e) {
     hideLoadPill();
     setStatus(e.message, true);
@@ -511,15 +585,20 @@ async function loadImagesProgressive(list, onOne) {
   return loaded;
 }
 
-// Coalesce many per-image renders into one per frame.
+// Coalesce many per-image renders into one per frame. rAF pauses entirely in
+// hidden tabs, so a timeout fallback keeps streamed images rendering while
+// the user is on another tab.
 let renderQueued = false;
 function scheduleRender() {
   if (renderQueued) return;
   renderQueued = true;
-  requestAnimationFrame(() => {
+  const run = () => {
+    if (!renderQueued) return;
     renderQueued = false;
     render();
-  });
+  };
+  requestAnimationFrame(run);
+  setTimeout(run, 200);
 }
 
 function enterWorkspace() {

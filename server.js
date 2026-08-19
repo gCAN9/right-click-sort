@@ -12,6 +12,8 @@ const {
   collectionsResponse,
   collectionItemsResponse,
   resolveCollectionResponse,
+  collectionSearchResponse,
+  collectionAllResponse,
 } = require('./lib/opensea');
 
 const PORT = process.env.PORT || 3000;
@@ -60,6 +62,14 @@ http
     }
     if (u.pathname === '/api/collections') {
       const r = await collectionsResponse(u.searchParams.get('address'), u.searchParams.get('chain'));
+      return json(res, r.status, r.body);
+    }
+    if (u.pathname === '/api/collection-search') {
+      const r = await collectionSearchResponse(u.searchParams.get('q'));
+      return json(res, r.status, r.body);
+    }
+    if (u.pathname === '/api/collection-all') {
+      const r = await collectionAllResponse(u.searchParams.get('contract'), u.searchParams.get('chain'));
       return json(res, r.status, r.body);
     }
     if (u.pathname === '/api/resolve-collection') {
