@@ -179,7 +179,7 @@ async function searchProfiles(q) {
   }
 }
 
-const CHAINS = ['ethereum', 'base', 'polygon', 'arbitrum', 'optimism', 'zksync', 'gnosis', 'robinhood'];
+const CHAINS = ['ethereum', 'base', 'robinhood'];
 const MAX_FILTER_RESULTS = 100;
 let allCollections = [];
 
