@@ -534,12 +534,52 @@ async function pickGlobalCollection(c) {
   }
 }
 
-// Dead or private IPFS gateways (project vanity gateways get shut down) still
-// carry the CID — rewrite to a public gateway as a fallback.
+// Dead, redirecting or bot-blocking IPFS gateways still carry the CID —
+// rewrite to dweb.link's SUBDOMAIN form, which serves with CORS and no bot
+// blocking. CIDv0 (Qm…) is converted to CIDv1 base32 for the hostname.
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const B32 = 'abcdefghijklmnopqrstuvwxyz234567';
+function cidV0toV1(qm) {
+  const num = [0];
+  for (const ch of qm) {
+    const v = B58.indexOf(ch);
+    if (v < 0) return null;
+    let carry = v;
+    for (let i = 0; i < num.length; i++) {
+      const x = num[i] * 58 + carry;
+      num[i] = x & 0xff;
+      carry = x >> 8;
+    }
+    while (carry) {
+      num.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  const cid = [0x01, 0x70, ...num.reverse()];
+  let bits = 0;
+  let val = 0;
+  let out = 'b';
+  for (const b of cid) {
+    val = (val << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      out += B32[(val >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits) out += B32[(val << (5 - bits)) & 31];
+  return out;
+}
+
 function ipfsRewrite(url) {
-  const m = url.match(/\/ipfs\/(Qm[1-9A-HJ-NP-Za-km-z]{44}(?:\/[^?#]*)?|baf[a-zA-Z0-9]+(?:\/[^?#]*)?)/);
-  if (m && !url.startsWith('https://ipfs.io/')) return `https://ipfs.io/ipfs/${m[1]}`;
-  return null;
+  if (url.includes('.ipfs.dweb.link')) return null;
+  const m = url.match(/\/ipfs\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-zA-Z0-9]+)((?:\/[^?#]*)?)/);
+  if (!m) return null;
+  const cid = m[1];
+  const rest = m[2] || '';
+  const v1 = /^baf/i.test(cid) ? cid.toLowerCase() : cidV0toV1(cid);
+  if (!v1) return null;
+  return `https://${v1}.ipfs.dweb.link${rest || '/'}`;
 }
 
 // Load one image: resizing CDN first, then CDN over a public IPFS gateway,
