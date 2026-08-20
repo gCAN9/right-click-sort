@@ -15,8 +15,8 @@ Then open http://localhost:3000. No dependencies (Node 18+).
 
 1. Search a profile (exact OpenSea username, ENS name, or 0x address) and
    pick it from the dropdown. The wallet's NFT collections load across all
-   supported chains (Ethereum, Base, Robinhood Chain — resolved on-chain via
-   public Blockscout indexers) with a progress
+   supported chains (Ethereum, Base, Robinhood Chain, Shape — resolved
+   on-chain via public Blockscout indexers) with a progress
    bar; type in the filter field to find a collection, or paste an OpenSea
    collection URL to locate one whose contract has no on-chain name. Picking
    a collection loads the wallet's held items into the grid.

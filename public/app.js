@@ -179,7 +179,7 @@ async function searchProfiles(q) {
   }
 }
 
-const CHAINS = ['ethereum', 'base', 'robinhood'];
+const CHAINS = ['ethereum', 'base', 'robinhood', 'shape'];
 const MAX_FILTER_RESULTS = 100;
 let allCollections = [];
 
