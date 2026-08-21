@@ -516,6 +516,32 @@ button.ghost:disabled:hover {
   transform-origin: top left;
 }
 
+#limit-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 40px 8px 14px;
+  background: #4a3200;
+  border-bottom: 1px solid #7a5a10;
+  color: #ffd88a;
+  font-size: 13px;
+  z-index: 100;
+}
+
+#limit-close {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  color: #ffd88a;
+  font-size: 16px;
+  padding: 2px 8px;
+}
+
 #load-pill {
   position: fixed;
   bottom: 22px;

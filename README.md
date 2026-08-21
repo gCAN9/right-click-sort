@@ -52,6 +52,22 @@ A `render.yaml` blueprint is included: **New → Blueprint**, pick this repo.
 Note that Render's free tier spins down when idle (first request after a
 quiet period takes ~30–60 s); Vercel does not.
 
+## Limit alerts
+
+When an upstream service rate-limits or fails (OpenSea API, Blockscout
+indexers, image hosts), page users see a dismissible banner warning that
+results may be incomplete. To ALSO get notified as the operator, set either
+(or both) env vars on the deployment:
+
+- `ALERT_WEBHOOK_URL` — any JSON webhook; a Discord channel webhook works
+  as-is (Server Settings → Integrations → Webhooks → copy URL).
+- `ALERT_NTFY_TOPIC` — a secret topic name of your choosing on
+  [ntfy.sh](https://ntfy.sh) (no account needed); subscribe to that topic in
+  the ntfy mobile/web app to receive pushes.
+
+Alerts are debounced to one per source per 10 minutes. Vercel-level platform
+limits (bandwidth, function hours) are emailed by Vercel itself.
+
 ## Notes
 
 - Images are fetched through a local proxy (`/api/img`) so the export canvas

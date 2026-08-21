@@ -122,6 +122,29 @@ let activeProfile = null;
 const escapeHtml = (s) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+// ---------- Upstream-limit banner ----------
+// API responses carry a `limits` array when the server recently hit upstream
+// rate limits or outages; surface it so users know results may be incomplete.
+
+const limitBanner = document.getElementById('limit-banner');
+const limitText = document.getElementById('limit-text');
+let limitBannerTimer = null;
+
+document.getElementById('limit-close').addEventListener('click', () => {
+  limitBanner.hidden = true;
+});
+
+function checkLimits(responseBody) {
+  const limits = responseBody && responseBody.limits;
+  if (!limits || !limits.length) return;
+  limitText.textContent = `Heads up: some data services are rate-limited or unavailable right now (${limits.join('; ')}). Results may be incomplete — try again in a few minutes.`;
+  limitBanner.hidden = false;
+  clearTimeout(limitBannerTimer);
+  limitBannerTimer = setTimeout(() => {
+    limitBanner.hidden = true;
+  }, 30000);
+}
+
 profileInput.addEventListener('input', () => {
   activeProfile = null;
   collectionsList.hidden = true;
@@ -158,6 +181,7 @@ async function searchProfiles(q) {
   try {
     const r = await fetch(`/api/profile?q=${encodeURIComponent(q)}`);
     const d = await r.json();
+    checkLimits(d);
     if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
     if (q !== profileInput.value.trim()) return; // stale response
     if (!d.results.length) {
@@ -214,6 +238,7 @@ async function pickProfile(p) {
       try {
         const r = await fetch(`/api/collections?address=${p.address}&chain=${chain}`);
         const d = await r.json();
+        checkLimits(d);
         if (r.ok) allCollections.push(...d.collections);
       } catch {}
       done++;
@@ -316,6 +341,7 @@ async function fetchCollectionImages(c) {
     `/api/collection-items?address=${activeProfile.address}&contract=${c.contract}&chain=${encodeURIComponent(c.chain || 'ethereum')}`
   );
   const d = await r.json();
+  checkLimits(d);
   if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
   return d.images;
 }
@@ -490,6 +516,7 @@ async function searchGlobalCollections(q) {
   try {
     const r = await fetch(`/api/collection-search?q=${encodeURIComponent(q)}`);
     const d = await r.json();
+    checkLimits(d);
     if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
     if (q !== collectionInput.value.trim()) return; // stale response
     if (!d.results.length) {
@@ -525,6 +552,7 @@ async function pickGlobalCollection(c) {
       `/api/collection-all?contract=${c.contract}&chain=${encodeURIComponent(c.chain || 'ethereum')}`
     );
     const d = await r.json();
+    checkLimits(d);
     if (!r.ok) throw new Error(d.error || `Server responded ${r.status}`);
     setStatus('');
     await streamIntoWorkspace(d.images);
