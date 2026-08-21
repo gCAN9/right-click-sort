@@ -582,8 +582,18 @@ function ipfsRewrite(url) {
   return `https://${v1}.ipfs.dweb.link${rest || '/'}`;
 }
 
-// Load one image: resizing CDN first, then CDN over a public IPFS gateway,
-// then our own proxy.
+// Extract {cid, rest} from any IPFS URL form (subdomain or path gateway).
+function ipfsParts(url) {
+  let m = url.match(/^https:\/\/([a-zA-Z0-9]+)\.ipfs\.[^/]+(\/[^?#]*)?/);
+  if (m) return { cid: m[1], rest: m[2] || '/' };
+  m = url.match(/\/ipfs\/(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-zA-Z0-9]+)((?:\/[^?#]*)?)/);
+  if (m) return { cid: m[1], rest: m[2] || '/' };
+  return null;
+}
+
+// Load one image: resizing CDN first, then CDN over alternate public IPFS
+// gateways (different gateways have different peering — content one can't
+// retrieve, another often can), then our own proxy.
 function loadOne({ url, name }) {
   return new Promise((resolve, reject) => {
     let candidates;
@@ -591,9 +601,13 @@ function loadOne({ url, name }) {
       candidates = [url];
     } else {
       const rw = ipfsRewrite(url);
+      const parts = ipfsParts(url);
+      const pinata = parts ? `https://gateway.pinata.cloud/ipfs/${parts.cid}${parts.rest}` : null;
       candidates = [cdnResized(url)];
       if (rw) candidates.push(cdnResized(rw));
+      if (pinata) candidates.push(cdnResized(pinata));
       candidates.push(proxied(rw || url));
+      if (pinata) candidates.push(proxied(pinata));
     }
     let i = 0;
     const tryNext = () => {
@@ -611,17 +625,31 @@ function loadOne({ url, name }) {
 }
 
 // Loads all images concurrently, invoking onOne(item, loadedSoFar) as each
-// arrives so the grid can fill progressively. Resolves with the loaded count.
+// arrives so the grid can fill progressively. Failures are retried in later
+// rounds: slow IPFS content often 504s cold, but the CDN's upstream fetch
+// keeps warming its cache, so a retry shortly after tends to succeed.
+// Resolves with the loaded count.
 async function loadImagesProgressive(list, onOne) {
   let loaded = 0;
-  await Promise.allSettled(
-    list.map((entry) =>
-      loadOne(entry).then((it) => {
-        loaded++;
-        onOne(it, loaded);
-      })
-    )
-  );
+  let pending = [...list];
+  const delays = [0, 8000, 20000];
+  for (let round = 0; round < delays.length && pending.length; round++) {
+    if (delays[round]) await new Promise((res) => setTimeout(res, delays[round]));
+    const failures = [];
+    await Promise.allSettled(
+      pending.map((entry) =>
+        loadOne(entry)
+          .then((it) => {
+            loaded++;
+            onOne(it, loaded);
+          })
+          .catch(() => {
+            failures.push(entry);
+          })
+      )
+    );
+    pending = failures;
+  }
   return loaded;
 }
 
